@@ -1,5 +1,8 @@
 package com.metlife.wf
 
+import java.nio.file.Paths
+
+import com.metlife.common.model.Sample1
 import javax.xml.bind.DatatypeConverter
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 import org.common.model._
@@ -34,6 +37,14 @@ object WorkFlowUtil {
 
     val df: DataFrame = if (fileSource.datasetFormat == FileFormats.CSV) {
       val inferSchema = if (fileSource.inferSchema.isDefined) fileSource.inferSchema.get else false
+
+      //TODO this is added for testing. Need to move to tests.
+//      val actFilePath = if(fileSource.datasetPath.startsWith("//")){
+//        val platformIndependentPath = Paths.get(classOf[Sample1].getClassLoader.getResource(fileSource.datasetPath.substring(1)).toURI).toString
+//        println(platformIndependentPath)
+//        platformIndependentPath
+//      }else fileSource.datasetPath
+
       sqlContext.read.format("com.databricks.spark.csv").option("inferSchema", inferSchema.toString).option("header", "" + fileSource.header.get).option("delimiter", getDelimiter(fileSource.datasetDelimiter.get)).load(fileSource.datasetPath) //.save(outputDir)
 
     } else if (fileSource.datasetFormat == "CSV-SNAPPY") {

@@ -16,7 +16,7 @@ object Mask {
   val maskValueColumn = "mask_value_sp19"
   val BASE_PATH_TEMP = "c:/Users/dpeechara/Desktop/"
 
-  val ENCRYPT_PASSWD = "abcdefghijklmno1" // need to pull from vault
+  val ENCRYPT_PASSWD = "abcdefghijklmno1" // TODO need to pull from vault
 
 
   def main(args: Array[String]): Unit = {
@@ -32,8 +32,10 @@ object Mask {
   }
 
 
-  def maskNumber(dfToMask: DataFrame, columnName: String, globalName: String, createIfNotExists: Boolean = false, numberOfDigits: Int): DataFrame = {
+  def maskNumber(dfToMask: DataFrame, columnName: String, tempGlobalName: String, createIfNotExists: Boolean = false, numberOfDigits: Int): DataFrame = {
     import org.apache.spark.sql.functions.max
+
+    val globalName = maskDatabase+"."+tempGlobalName
 
     // step 1 : mask the column
     val columnType = dfToMask.select(columnName).schema.head.dataType

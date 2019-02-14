@@ -16,7 +16,7 @@ class MaskTest extends FunSuite with SharedSparkContext {
     val sqlContext = new SQLContext(sc)
     import sqlContext.implicits._
     val spark = sqlContext.sparkSession
-
+    spark.sql("create database mask_db")
     assert(1==1)
   }
 

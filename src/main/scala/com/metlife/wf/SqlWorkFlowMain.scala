@@ -2,8 +2,9 @@ package com.metlife.wf
 
 import java.nio.file.{Files, Paths}
 
-
+import com.metlife.common.model.Sample1
 import org.apache.commons.io.output.ByteArrayOutputStream
+import org.apache.spark.sql.catalyst.plans.logical.Sample
 import org.apache.spark.sql.{SQLContext, SparkSession}
 import org.common.model._
 import org.wf.util.FileUtil
@@ -126,6 +127,8 @@ object SqlWorkFlowMain extends SparkInit {
     //    sqlContext.read.format()
     import CSV_INPUT_JOB._
     import sqlContext.implicits._
+
+
     val ds = sqlContext.read.option("header", "true").option("delimiter", ",").csv(filePath).as[CSV_INPUT_JOB] // //.save(outputDir)
     ds.show()
 
@@ -143,14 +146,25 @@ object SqlWorkFlowMain extends SparkInit {
 
       val tuple: Tuple2[String, Job] = record.job_type match {
         case SqlJobTypes.INPUT_SOURCE => {
-          val header = if (record.csv_header != null && record.csv_header == "TRUE") true else false
-          val fs = FileSource(record.csv_file_path, FileFormats.CSV, Some(record.csv_delimiter), Some(header))
-          record.job_name -> Job(record.job_name, Some(true), depends_on, Some(fs), jobOutputTableName = outputName)
+          if(record.hive != null && record.hive.length > 0){
+            val fs = FileSource(record.hive, FileFormats.HIVE)
+            record.job_name -> Job(record.job_name, Some(true), depends_on, Some(fs), jobOutputTableName = outputName)
+          }else {
+            val header = if (record.csv_header != null && record.csv_header == "TRUE") true else false
+            val fs = FileSource(record.csv_file_path, FileFormats.CSV, Some(record.csv_delimiter), Some(header))
+            record.job_name -> Job(record.job_name, Some(true), depends_on, Some(fs), jobOutputTableName = outputName)
+          }
         }
         case SqlJobTypes.OUTPUT_SOURCE => {
-          val header = if (record.csv_header != null && record.csv_header == "TRUE") true else false
-          val fs = FileSource(record.csv_file_path, FileFormats.CSV, Some(record.csv_delimiter), Some(header), mode = Some(record.output_mode))
-          record.job_name -> Job(record.job_name, Some(true), depends_on, output = Some(fs), jobOutputTableName = outputName)
+          if (record.hive != null && record.hive.length > 0) {
+            val fs = FileSource(record.hive, FileFormats.HIVE)
+
+            record.job_name -> Job(record.job_name, Some(true), depends_on,output = Some(fs), jobOutputTableName = outputName)
+          } else {
+            val header = if (record.csv_header != null && record.csv_header == "TRUE") true else false
+            val fs = FileSource(record.csv_file_path, FileFormats.CSV, Some(record.csv_delimiter), Some(header), mode = Some(record.output_mode))
+            record.job_name -> Job(record.job_name, Some(true), depends_on, output = Some(fs), jobOutputTableName = outputName)
+          }
         }
         case SqlJobTypes.TRANSFORMATION => {
           val sql: Option[String] = getSqlText(record.transformation_file, record.transformation_sql)

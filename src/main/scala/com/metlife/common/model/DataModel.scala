@@ -11,7 +11,7 @@ import org.apache.spark.sql.catalyst.plans.logical.Repartition
 
 class DataModel {}
 
-case class CSV_INPUT_JOB(job_name:String,depends_on:String,job_type:String,output_mode:String,output_tbl_name:String,csv_file_path:String,csv_delimiter:String,csv_header:String,filter_file:String,filter_sql:String,transformation_file:String,transformation_sql:String,join_file:String,join_sql:String,mask_column_name:String, mask_column_global_type : String, mask_column_type:String, mask_num_digits: String)
+case class CSV_INPUT_JOB(job_name:String,depends_on:String,job_type:String,output_mode:String,output_tbl_name:String,hive:String,csv_file_path:String,csv_delimiter:String,csv_header:String,filter_file:String,filter_sql:String,transformation_file:String,transformation_sql:String,join_file:String,join_sql:String,mask_column_name:String, mask_column_global_type : String, mask_column_type:String, mask_num_digits: String)
 
 case class InputFlow(root: String, jobMap: Map[String, Job], callBackUrl: Option[String] = None, flowName: String, livy:Option[Boolean]=None, hadoop:Option[Boolean]=None)
 
