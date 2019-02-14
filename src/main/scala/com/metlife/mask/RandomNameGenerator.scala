@@ -7,10 +7,6 @@ import java.util.{Collections, Random}
 
 class RandomNameGenerator(seed:Int) {
 
-//  def apply( seed: Long): RandomNameGenerator = {
-//    new RandomNameGenerator(seed)
-//  }
-
   private def loadNames(resource: String) = {
     val names = new java.util.ArrayList[String]
     // use classloader that loaded the jar with this class to ensure we can get the csvs
@@ -41,14 +37,6 @@ class RandomNameGenerator(seed:Int) {
   final private val lastNameIndex = new AtomicInteger(0)
   final private val companyIndex = new AtomicInteger(0)
   final private val prefixIndex = new AtomicInteger(0)
-
-//  def this(random: Random) {
-//    RandomNameGenerator.loadNames("inbot-testfixtures/firstnames.csv")
-//    RandomNameGenerator.loadNames("inbot-testfixtures/lastnames.csv")
-//    RandomNameGenerator.loadNames("inbot-testfixtures/companies.csv")
-//    RandomNameGenerator.loadNames("inbot-testfixtures/prefix.csv")
-//    shuffle(random)
-//  }
 
   def load(seed: Long) {
     firstNamesOriginal=loadNames("inbot-testfixtures/firstnames.csv")
@@ -98,6 +86,4 @@ class RandomNameGenerator(seed:Int) {
 
 }
 
-
-//return Array[String](person.getFirstName, person.getLastName, person.getCompany, person.getDomainName, person.getEmail)
 
