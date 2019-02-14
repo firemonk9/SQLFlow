@@ -23,7 +23,7 @@ class SqlWorkFlowMainTest extends FunSuite with SharedSparkContext{
     val csvFile = initPath.replace("flow2.csv","input-one.csv")
 
     val ds = sqlContext.read.option("header", "true").option("delimiter", ",").csv(csvFile)//.as[CSV_INPUT_JOB] // //.save(outputDir)
-    ds.registerTempTable("inputone")
+    ds.registerTempTable("input_test_1")
 
     SqlWorkFlowMain.processFlow(f.getAbsolutePath().toString,sqlContext,false,true )
   }

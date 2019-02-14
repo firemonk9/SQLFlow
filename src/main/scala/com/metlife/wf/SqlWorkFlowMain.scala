@@ -123,7 +123,8 @@ object SqlWorkFlowMain extends SparkInit {
     v
   }
 
-  def csvToWF(filePath: String, sqlContext: SQLContext, local: Boolean): InputFlow = {
+  def
+  csvToWF(filePath: String, sqlContext: SQLContext, local: Boolean): InputFlow = {
     //    sqlContext.read.format()
     import CSV_INPUT_JOB._
     import sqlContext.implicits._
