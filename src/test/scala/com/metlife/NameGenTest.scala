@@ -1,7 +1,9 @@
 package com.metlife.datagen
 
 import java.io.File
+
 import com.holdenkarau.spark.testing.SharedSparkContext
+import com.metlife.mask.NameGen
 import org.apache.spark.sql.SQLContext
 import org.scalatest.FunSuite
 

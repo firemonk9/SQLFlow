@@ -1,7 +1,6 @@
-package com.metlife
+package com.metlife.mask
 
 import java.util.Locale
-
 
 case class Person(val firstName: String, val lastName: String, val company: String, val prefix: String) {
   def getPrefix: String = prefix

@@ -1,6 +1,5 @@
-package com.metlife.datagen
+package com.metlife.mask
 
-import com.metlife.RandomNameGenerator
 import org.apache.spark.sql.SparkSession
 case class Name(id:Long,name:String )
 

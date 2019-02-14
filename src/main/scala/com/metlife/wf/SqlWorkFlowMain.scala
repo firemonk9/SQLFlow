@@ -2,7 +2,7 @@ package com.metlife.wf
 
 import java.nio.file.{Files, Paths}
 
-import com.metlife.common.JobsExecutor
+
 import org.apache.commons.io.output.ByteArrayOutputStream
 import org.apache.spark.sql.{SQLContext, SparkSession}
 import org.common.model._
