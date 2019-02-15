@@ -14,9 +14,9 @@ class NameGenTest extends FunSuite with SharedSparkContext {
     val platformIndependentPath = Paths.get(classOf[NameGenTest].getClassLoader.getResource("flow2.csv").toURI).toString
 
     val parent = Paths.get(platformIndependentPath).getParent
-    val f = new File(parent.getParent+"/names.parquet")
-    println(" absolute path : "+f.getAbsolutePath)
-    NameGen.main(sqlContext.sparkSession,f.getAbsolutePath)
+//    val f = new File("C:\\Users\\dpeechara\\Desktop"+"/names.parquet")
+//    println(" absolute path : "+f.getAbsolutePath)
+    NameGen.main(sqlContext.sparkSession,None)
     //TODO ensure names are generated.
   }
 }

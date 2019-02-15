@@ -12,6 +12,8 @@ object Mask {
 
   val maskDatabase = "mask_db"
   val REAL_NUMBER = "REAL_NUMBER"
+  val FULL_NAMES = "FULL_NAMES"
+
   val maskKeyColumn = "mask_key_secret_sp19"
   val maskValueColumn = "mask_value_sp19"
   val BASE_PATH_TEMP = "/tmp/"
@@ -24,15 +26,22 @@ object Mask {
     //read properties
   }
 
-  def maskColumn(df: DataFrame, columnName: String, globalName: String, maskType: String, createIfNotExists: Boolean = true, numberOfDigits: Int = -1): DataFrame = {
+  def maskFullNames(df: DataFrame, columnName: String, globalName: String, createIfNotExists: Boolean): DataFrame = {
+
+    df
+  }
+
+  def maskColumn(df: DataFrame, columnName: String, globalName: String, maskType: String, createIfNotExists: Boolean = true, numberOfDigits: Int = -1,localTesting:Boolean=false): DataFrame = {
     if (maskType == REAL_NUMBER)
-      maskNumber(df, columnName, globalName, createIfNotExists, numberOfDigits)
+      maskNumber(df, columnName, globalName, createIfNotExists, numberOfDigits,localTesting)
+    else if (maskType == FULL_NAMES)
+      maskFullNames(df, columnName, globalName, createIfNotExists)
     else
       df
   }
 
 
-  def maskNumber(dfToMask: DataFrame, columnName: String, tempGlobalName: String, createIfNotExists: Boolean = true, numberOfDigits: Int): DataFrame = {
+  def maskNumber(dfToMask: DataFrame, columnName: String, tempGlobalName: String, createIfNotExists: Boolean = true, numberOfDigits: Int,localTesting:Boolean): DataFrame = {
     import org.apache.spark.sql.functions.max
 
     val globalName = (tempGlobalName).toLowerCase()
@@ -66,13 +75,15 @@ object Mask {
       val foundKeysFrame = jdf.filter(jdf(maskKeyColumn).isNotNull).drop(columnName, maskKeyColumn).withColumnRenamed(maskValueColumn, columnName)//.localCheckpoint(true)
 
       //TODO Temp hack to run in local.
-      newKeysFrame.write.mode(SaveMode.Overwrite).parquet(BASE_PATH_TEMP+"new_keys")
-      val newKeysDf = jdf.sparkSession.read.parquet(BASE_PATH_TEMP+"new_keys")
-      foundKeysFrame.write.mode(SaveMode.Overwrite).parquet(BASE_PATH_TEMP+"found_keys")
-      val foundKeys =jdf.sparkSession.read.parquet(BASE_PATH_TEMP+"found_keys")
+      val (nnnew, nnfound)=if(localTesting) {
+              newKeysFrame.write.mode(SaveMode.Overwrite).parquet(BASE_PATH_TEMP+"new_keys")
+              val newKeysDf = jdf.sparkSession.read.parquet(BASE_PATH_TEMP+"new_keys")
+              foundKeysFrame.write.mode(SaveMode.Overwrite).parquet(BASE_PATH_TEMP+"found_keys")
+              val foundKeys =jdf.sparkSession.read.parquet(BASE_PATH_TEMP+"found_keys")
+        (newKeysDf,foundKeys)
+      }else (newKeysFrame,foundKeysFrame)
 
-
-     (begin, Some(foundKeys), newKeysDf)
+     (begin, Some(nnfound), nnnew)
     }
 
 

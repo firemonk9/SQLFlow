@@ -21,10 +21,10 @@ class MaskTest extends FunSuite with SharedSparkContext  {
     spark.sql("create database mask_db")
     val sampleF = spark.sparkContext.parallelize(sampleData).toDF
     val sampleFNew = spark.sparkContext.parallelize(sampleDataNew).toDF
-    val edf = Mask.maskColumn(sampleF,"ssn","SSN",Mask.REAL_NUMBER,true,9)
+    val edf = Mask.maskColumn(sampleF,"ssn","SSN",Mask.REAL_NUMBER,true,9,true)
     edf.show()
 
-    val ndf = Mask.maskColumn(sampleFNew,"ssn","SSN",Mask.REAL_NUMBER,true,9)
+    val ndf = Mask.maskColumn(sampleFNew,"ssn","SSN",Mask.REAL_NUMBER,true,9,true)
     ndf.show()
     assert(edf.filter(edf("name") === "John").head() == ndf.filter(ndf("name") === "John").head())
     assert(edf.count() == sampleF.count())
