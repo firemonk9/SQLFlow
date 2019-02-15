@@ -1,10 +1,8 @@
-package com.metlife.datagen
+package com.metlife.mask
 
 import java.io.File
-import java.nio.file.Paths
 
 import com.holdenkarau.spark.testing.SharedSparkContext
-import com.metlife.mask.NameGen
 import org.apache.spark.sql.SQLContext
 import org.scalatest.FunSuite
 

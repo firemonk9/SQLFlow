@@ -3,7 +3,7 @@ package com.metlife.wf
 import java.io.File
 
 import com.holdenkarau.spark.testing.SharedSparkContext
-import com.metlife.datagen.NameGenTest
+import com.metlife.mask.NameGenTest
 import org.apache.spark.sql.SQLContext
 import org.common.model.CSV_INPUT_JOB
 import org.scalatest.FunSuite
