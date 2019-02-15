@@ -39,11 +39,6 @@ object WorkFlowUtil {
       val inferSchema = if (fileSource.inferSchema.isDefined) fileSource.inferSchema.get else false
 
       //TODO this is added for testing. Need to move to tests.
-//      val actFilePath = if(fileSource.datasetPath.startsWith("//")){
-//        val platformIndependentPath = Paths.get(classOf[Sample1].getClassLoader.getResource(fileSource.datasetPath.substring(1)).toURI).toString
-//        println(platformIndependentPath)
-//        platformIndependentPath
-//      }else fileSource.datasetPath
 
       sqlContext.read.format("com.databricks.spark.csv").option("inferSchema", inferSchema.toString).option("header", "" + fileSource.header.get).option("delimiter", getDelimiter(fileSource.datasetDelimiter.get)).load(fileSource.datasetPath) //.save(outputDir)
 

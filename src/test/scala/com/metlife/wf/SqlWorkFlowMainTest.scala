@@ -16,6 +16,7 @@ class SqlWorkFlowMainTest extends FunSuite with SharedSparkContext{
     val spark = sqlContext.sparkSession
 
     spark.sql("create database mask_db")
+    spark.sql("use mask_db")
     val url = classOf[NameGenTest].getClassLoader.getResource("flow2.csv")
     val f = new File(url.toURI().getPath)
 

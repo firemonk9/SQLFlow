@@ -10,11 +10,11 @@ import org.apache.spark.sql._
 
 object Mask {
 
-  val maskDatabase = "MASK_DB"
+  val maskDatabase = "mask_db"
   val REAL_NUMBER = "REAL_NUMBER"
   val maskKeyColumn = "mask_key_secret_sp19"
   val maskValueColumn = "mask_value_sp19"
-  val BASE_PATH_TEMP = "c:/Users/dpeechara/Desktop/"
+  val BASE_PATH_TEMP = "/tmp/"
 
   val ENCRYPT_PASSWD = "abcdefghijklmno1" // TODO need to pull from vault
 
@@ -32,15 +32,18 @@ object Mask {
   }
 
 
-  def maskNumber(dfToMask: DataFrame, columnName: String, tempGlobalName: String, createIfNotExists: Boolean = false, numberOfDigits: Int): DataFrame = {
+  def maskNumber(dfToMask: DataFrame, columnName: String, tempGlobalName: String, createIfNotExists: Boolean = true, numberOfDigits: Int): DataFrame = {
     import org.apache.spark.sql.functions.max
 
-    val globalName = maskDatabase+"."+tempGlobalName
-
+    val globalName = (tempGlobalName).toLowerCase()
+    println(" Global mask table  "+globalName)
     // step 1 : mask the column
     val columnType = dfToMask.select(columnName).schema.head.dataType
     val frame123:DataFrame = dfToMask.withColumn(columnName, dfToMask(columnName).cast(StringType))
     val dfToMaskEnc = getEncryptedColumn(frame123, columnName)
+
+    dfToMaskEnc.sparkSession.sql("use "+maskDatabase)
+    println(" Looking for : "+globalName+"   and found status : "+dfToMask.sparkSession.catalog.tableExists(globalName))
 
     if (!dfToMask.sparkSession.catalog.tableExists(globalName) && createIfNotExists == false) {
       throw new Exception("Check the name " + globalName + " or set createIfNotExists to true if new table should be created.")
@@ -80,13 +83,12 @@ object Mask {
 
 
 
-    val toSaveAsTable = frame.write.mode("append").saveAsTable(globalName)
+    frame.write.mode("append").saveAsTable(globalName)
     val t3 = t2.drop(columnName).withColumnRenamed(newColumn, columnName)
 
     t3.show()
     val finalRes = if (toAppend.isDefined) {
       toAppend.get.show()
-      toAppend.get
       toAppend.get.union(t3)
     } else t3
 

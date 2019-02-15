@@ -1,4 +1,4 @@
 JOB_NAME,DEPENDS_ON,JOB_TYPE,OUTPUT_MODE,OUTPUT_TBL_NAME,OUT_TABLE_MAP,HIVE,CSV_FILE_PATH,CSV_DELIMITER,CSV_HEADER,FILTER_FILE,FILTER_SQL,TRANSFORMATION_FILE,TRANSFORMATION_SQL,JOIN_FILE,JOIN_SQL,MASK_COLUMN_NAME,MASK_COLUMN_GLOBAL_TYPE,MASK_COLUMN_TYPE,MASK_NUM_DIGITS
 source_a,,INPUT_SOURCE,,secret_info_tbl,,input_test_1,//resources/input-one.csv,",",TRUE,,,,,,,,,,
 mask_ssn,source_a,COLUMN_MASKING,,join_output,,,,,,,,,,,,ssn1,SSN,REAL_NUMBER,9
-output,mask_ssn,OUTPUT_SOURCE,overwrite,,,mask_db.input_test_1_out,//resources/input-one-out.csv,",",TRUE,,,,,,,,,,
+output,mask_ssn,OUTPUT_SOURCE,overwrite,,,input_test_1_out,//resources/input-one-out.csv,",",TRUE,,,,,,,,,,

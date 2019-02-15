@@ -2,9 +2,7 @@ package com.metlife.wf
 
 import java.nio.file.{Files, Paths}
 
-import com.metlife.common.model.Sample1
 import org.apache.commons.io.output.ByteArrayOutputStream
-import org.apache.spark.sql.catalyst.plans.logical.Sample
 import org.apache.spark.sql.{SQLContext, SparkSession}
 import org.common.model._
 import org.wf.util.FileUtil
@@ -68,19 +66,8 @@ object SqlWorkFlowMain extends SparkInit {
   }
 
 
-//  def convertCSVtoInputFlow(str: String, sqlContext: SQLContext): InputFlow = {
-//    import sqlContext.sparkSession.implicits._
-//    val df = sqlContext.sparkSession.read.option("header", "true").option("delimiter", ",").csv(str).as[Job]
-//    val ds = df.as[Job].collect().toList
-//    val last = ds.last
-//    val jobsMap = ds.map(a => a.id -> a).toMap
-//    InputFlow(last.id, jobsMap, None, last.id)
-//  }
-
-
   def processFlow(inputFile: String, sqlContext: SQLContext, hdfsOutput: Boolean = true, debug: Boolean): Unit = {
-    //val jsonContent =   //if (hdfsOutput) org.wf.util.FileUtil.getFileContent(inputFile, sqlContext.sparkContext.hadoopConfiguration) else Some(scala.io.Source.fromFile(inputFile).getLines().mkString)
-    val filesCompare: InputFlow = csvToWF(inputFile, sqlContext,true) //if (jsonContent.isDefined) convertCSVtoInputFlow(jsonContent.get) else throw new IllegalArgumentException("unable to read input JSON " + inputFile)
+    val filesCompare: InputFlow = csvToWF(inputFile, sqlContext, true) //if (jsonContent.isDefined) convertCSVtoInputFlow(jsonContent.get) else throw new IllegalArgumentException("unable to read input JSON " + inputFile)
     new JobsExecutor(filesCompare, sqlContext, debug).processChains()
   }
 
@@ -123,13 +110,9 @@ object SqlWorkFlowMain extends SparkInit {
     v
   }
 
-  def
-  csvToWF(filePath: String, sqlContext: SQLContext, local: Boolean): InputFlow = {
-    //    sqlContext.read.format()
-    import CSV_INPUT_JOB._
+  def csvToWF(filePath: String, sqlContext: SQLContext, local: Boolean): InputFlow = {
+
     import sqlContext.implicits._
-
-
     val ds = sqlContext.read.option("header", "true").option("delimiter", ",").csv(filePath).as[CSV_INPUT_JOB] // //.save(outputDir)
     ds.show()
 
@@ -143,14 +126,14 @@ object SqlWorkFlowMain extends SparkInit {
     val jobsMap: Array[(String, Job)] = ds.collect().map(record => {
       val depends_on: Option[List[String]] = if (record == null || record.depends_on == null || record.depends_on.length == 0) None else Some(record.depends_on.split(":").toList)
       val outputName: Option[String] = if (record.output_tbl_name != null) Some(record.job_name) else None
-      println("Job Type: "+record.job_type+" depends_on "+depends_on)
+      println("Job Type: " + record.job_type + " depends_on " + depends_on)
 
       val tuple: Tuple2[String, Job] = record.job_type match {
         case SqlJobTypes.INPUT_SOURCE => {
-          if(record.hive != null && record.hive.length > 0){
+          if (record.hive != null && record.hive.length > 0) {
             val fs = FileSource(record.hive, FileFormats.HIVE)
             record.job_name -> Job(record.job_name, Some(true), depends_on, Some(fs), jobOutputTableName = outputName)
-          }else {
+          } else {
             val header = if (record.csv_header != null && record.csv_header == "TRUE") true else false
             val fs = FileSource(record.csv_file_path, FileFormats.CSV, Some(record.csv_delimiter), Some(header))
             record.job_name -> Job(record.job_name, Some(true), depends_on, Some(fs), jobOutputTableName = outputName)
@@ -160,7 +143,7 @@ object SqlWorkFlowMain extends SparkInit {
           if (record.hive != null && record.hive.length > 0) {
             val fs = FileSource(record.hive, FileFormats.HIVE)
 
-            record.job_name -> Job(record.job_name, Some(true), depends_on,output = Some(fs), jobOutputTableName = outputName)
+            record.job_name -> Job(record.job_name, Some(true), depends_on, output = Some(fs), jobOutputTableName = outputName)
           } else {
             val header = if (record.csv_header != null && record.csv_header == "TRUE") true else false
             val fs = FileSource(record.csv_file_path, FileFormats.CSV, Some(record.csv_delimiter), Some(header), mode = Some(record.output_mode))
@@ -181,9 +164,9 @@ object SqlWorkFlowMain extends SparkInit {
         }
         case SqlJobTypes.MASK => {
           val sql: Option[String] = getSqlText(record.join_file, record.join_sql)
-          val maskNumDig = if(record.mask_num_digits != null && record.mask_column_type == COLUMN_MASKING_TYPE.REAL_NUMBER) Some(record.mask_num_digits.toInt) else None
+          val maskNumDig = if (record.mask_num_digits != null && record.mask_column_type == COLUMN_MASKING_TYPE.REAL_NUMBER) Some(record.mask_num_digits.toInt) else None
 
-          val dataMask = ColumnMask(record.mask_column_name,record.mask_column_global_type,record.mask_column_type,maskNumDig )
+          val dataMask = ColumnMask(record.mask_column_name, record.mask_column_global_type, record.mask_column_type, maskNumDig)
           record.job_name -> Job(record.job_name, Some(true), depends_on, None, columnMask = Some(dataMask), jobOutputTableName = outputName)
         }
         case _ => throw new IllegalArgumentException
@@ -192,7 +175,7 @@ object SqlWorkFlowMain extends SparkInit {
       tuple
     })
 
-    println(" root name :"+ds.collect().last.job_name)
+    println(" root name :" + ds.collect().last.job_name)
 
     InputFlow(ds.collect().last.job_name, jobsMap.toMap, None, ds.collect().last.job_name)
   }
