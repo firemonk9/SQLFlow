@@ -14,6 +14,7 @@ object Mask {
   val REAL_NUMBER = "REAL_NUMBER"
   val FULL_NAMES = "FULL_NAMES"
 
+  val needMaskingColumn = "isItMasked?"
   val maskKeyColumn = "mask_key_secret_sp19"
   val maskValueColumn = "mask_value_sp19"
   val BASE_PATH_TEMP = "/tmp/"
@@ -33,81 +34,12 @@ object Mask {
 
   def maskColumn(df: DataFrame, columnName: String, globalName: String, maskType: String, createIfNotExists: Boolean = true, numberOfDigits: Int = -1,localTesting:Boolean=false): DataFrame = {
     if (maskType == REAL_NUMBER)
-      maskNumber(df, columnName, globalName, createIfNotExists, numberOfDigits,localTesting)
+      //maskNumber(df, columnName, globalName, createIfNotExists, numberOfDigits,localTesting)
+      isItMasked(df, columnName, globalName, createIfNotExists, numberOfDigits,localTesting)
     else if (maskType == FULL_NAMES)
       maskFullNames(df, columnName, globalName, createIfNotExists)
     else
       df
-  }
-
-
-  def maskNumber(dfToMask: DataFrame, columnName: String, tempGlobalName: String, createIfNotExists: Boolean = true, numberOfDigits: Int,localTesting:Boolean): DataFrame = {
-    import org.apache.spark.sql.functions.max
-
-    val globalName = (tempGlobalName).toLowerCase()
-    println(" Global mask table  "+globalName)
-    // step 1 : mask the column
-    val columnType = dfToMask.select(columnName).schema.head.dataType
-    val frame123:DataFrame = dfToMask.withColumn(columnName, dfToMask(columnName).cast(StringType))
-    val dfToMaskEnc = getEncryptedColumn(frame123, columnName)
-
-    dfToMaskEnc.sparkSession.sql("use "+maskDatabase)
-    println(" Looking for : "+globalName+"   and found status : "+dfToMask.sparkSession.catalog.tableExists(globalName))
-
-    if (!dfToMask.sparkSession.catalog.tableExists(globalName) && createIfNotExists == false) {
-      throw new Exception("Check the name " + globalName + " or set createIfNotExists to true if new table should be created.")
-    }
-
-    val (begin: Int, toAppend: Option[DataFrame], newKeysDf: DataFrame) = if (!dfToMask.sparkSession.catalog.tableExists(globalName) && createIfNotExists) {
-      val begin = ("1" + "0" * numberOfDigits).toInt
-      (begin, None, dfToMaskEnc)
-    }
-    else  {
-
-      val cacheTableGlobal = dfToMaskEnc.sparkSession.sql("select * from " + globalName)
-      cacheTableGlobal.show(false)
-      val maxValue = cacheTableGlobal.agg(max(cacheTableGlobal(maskValueColumn))).head.getLong(0)
-      val begin = (maxValue + 1).toInt
-
-      val jdf = dfToMaskEnc.join(cacheTableGlobal, dfToMaskEnc(columnName) === cacheTableGlobal(maskKeyColumn),"left_outer")
-
-      val newKeysFrame = jdf.filter(jdf(maskKeyColumn).isNull).drop(maskKeyColumn, maskValueColumn)//.localCheckpoint(true)
-      val foundKeysFrame = jdf.filter(jdf(maskKeyColumn).isNotNull).drop(columnName, maskKeyColumn).withColumnRenamed(maskValueColumn, columnName)//.localCheckpoint(true)
-
-      //TODO Temp hack to run in local.
-      val (nnnew, nnfound)=if(localTesting) {
-              newKeysFrame.write.mode(SaveMode.Overwrite).parquet(BASE_PATH_TEMP+"new_keys")
-              val newKeysDf = jdf.sparkSession.read.parquet(BASE_PATH_TEMP+"new_keys")
-              foundKeysFrame.write.mode(SaveMode.Overwrite).parquet(BASE_PATH_TEMP+"found_keys")
-              val foundKeys =jdf.sparkSession.read.parquet(BASE_PATH_TEMP+"found_keys")
-        (newKeysDf,foundKeys)
-      }else (newKeysFrame,foundKeysFrame)
-
-     (begin, Some(nnfound), nnnew)
-    }
-
-
-    val newColumn = columnName + "_" + "SAM_QRE_321_455"
-    //val t1 = newKeysDf.withColumn(newColumn, monotonically_increasing_id)
-    val t2 = dfZipWithIndex(newKeysDf, begin, newColumn, false)
-    val frame = t2.select(columnName, newColumn).toDF(maskKeyColumn, maskValueColumn)
-
-
-
-    frame.write.mode("append").saveAsTable(globalName)
-    val t3 = t2.drop(columnName).withColumnRenamed(newColumn, columnName)
-
-    t3.show()
-    val finalRes = if (toAppend.isDefined) {
-      toAppend.get.show()
-      toAppend.get.union(t3)
-    } else t3
-
-    finalRes.show()
-    finalRes.withColumn(columnName, finalRes(columnName).cast(columnType))
-
-
-
   }
 
 
@@ -202,7 +134,9 @@ object Mask {
     dfToMask.sparkSession.sql("use "+maskDatabase)
     println(" Looking for : "+globalName+"   and found status : "+dfToMask.sparkSession.catalog.tableExists(globalName))
 
-    val dfToCheck = getColumnStatus(dfToMask, columnName)
+    val columnType = dfToMask.select(columnName).schema.head.dataType
+    val frame123:DataFrame = dfToMask.withColumn(columnName, dfToMask(columnName).cast(StringType))
+    val dfToCheck = getColumnStatus(frame123, columnName)
     val needMasking = dfToCheck.filter(dfToCheck(needMaskingColumn).like("F"))
     val dfToMaskEnc = getEncryptedColumn(needMasking, columnName).drop(needMaskingColumn)
 
@@ -261,7 +195,8 @@ object Mask {
       toAppend.get.union(t3)
     } else t3
 
-    finalRes
+    finalRes.show()
+    finalRes.withColumn(columnName, finalRes(columnName).cast(columnType))
   }
 
 
