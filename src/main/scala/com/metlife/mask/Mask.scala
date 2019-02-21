@@ -169,5 +169,100 @@ object Mask {
 
   }
 
+  def maskedString(tin: String): String = {
+    val special_c = """[a-zA-Z~!@#$^%&*\\(\\)_+=\\{\\}\\[\\]|;:\"'<,>.?`/\\\\]""".r
+    val ones = "111111111"
+    val nines = "999999999"
+    val zeros = "000000000"
+    val rm_dash = tin.replaceAll("-", "")
+
+    if(tin.trim.isEmpty || tin.trim.length() < 4 || tin.trim.take(1) == "-" || rm_dash.trim.matches(ones) || rm_dash.trim.matches(nines) || rm_dash.trim.matches(zeros) || tin.trim.takeRight(4) == "0000"|| special_c.findFirstIn(tin.trim).toString != "None")
+      "T"
+    else
+      "F"
+  }
+  def getColumnStatus(df: DataFrame, colName: String): DataFrame = {
+    val spark = df.sparkSession
+    import org.apache.spark.sql.functions._
+
+
+    val maskedStrUdf = udf[String,String](maskedString)
+    val edf = df.withColumn(needMaskingColumn, maskedStrUdf(df(colName)))
+    //edf.withColumn(colName, sha2(edf(colName), 512))
+    edf
+  }
+
+
+  def isItMasked(dfToMask: DataFrame, columnName: String, tempGlobalName: String, createIfNotExists: Boolean = true, numberOfDigits: Int,localTesting:Boolean): DataFrame = {
+    import org.apache.spark.sql.functions.max
+
+    val globalName = (tempGlobalName).toLowerCase()
+    println(" Global mask table  "+globalName)
+
+    dfToMask.sparkSession.sql("use "+maskDatabase)
+    println(" Looking for : "+globalName+"   and found status : "+dfToMask.sparkSession.catalog.tableExists(globalName))
+
+    val dfToCheck = getColumnStatus(dfToMask, columnName)
+    val needMasking = dfToCheck.filter(dfToCheck(needMaskingColumn).like("F"))
+    val dfToMaskEnc = getEncryptedColumn(needMasking, columnName).drop(needMaskingColumn)
+
+    if (!dfToMask.sparkSession.catalog.tableExists(globalName) && createIfNotExists == false) {
+      throw new Exception("Check the name " + globalName + " or set createIfNotExists to true if new table should be created.")
+    }
+
+    val (begin: Int, toAppend: Option[DataFrame], newKeysDf: DataFrame) = if (!dfToMask.sparkSession.catalog.tableExists(globalName) && createIfNotExists) {
+      val begin = ("1" + "0" * numberOfDigits).toInt
+      (begin, None, dfToMaskEnc)
+    }
+    else  {
+
+      val cacheTableGlobal = dfToMaskEnc.sparkSession.sql("select * from " + globalName)
+      var maxValue = 0.0
+      var begin = 0
+
+      if(cacheTableGlobal.count() == 0){
+        begin = ("1" + "0" * numberOfDigits).toInt
+      }else{
+        maxValue = cacheTableGlobal.agg(max(cacheTableGlobal(maskValueColumn))).head.getLong(0)
+        begin = (maxValue + 1).toInt
+      }
+
+      val jdf = dfToMaskEnc.join(cacheTableGlobal, dfToMaskEnc(columnName) === cacheTableGlobal(maskKeyColumn),"left_outer")
+
+      val newKeysFrame = jdf.filter(jdf(maskKeyColumn).isNull).drop(maskKeyColumn, maskValueColumn)//.localCheckpoint(true)
+
+      val foundKeysFrame = jdf.filter(jdf(maskKeyColumn).isNotNull).drop(columnName, maskKeyColumn).withColumnRenamed(maskValueColumn, columnName)//.localCheckpoint(true)
+
+      //TODO Temp hack to run in local.
+      val (nnnew, nnfound)=if(localTesting) {
+        newKeysFrame.write.mode(SaveMode.Overwrite).parquet(BASE_PATH_TEMP+"new_keys")
+        val newKeysDf = jdf.sparkSession.read.parquet(BASE_PATH_TEMP+"new_keys")
+        foundKeysFrame.write.mode(SaveMode.Overwrite).parquet(BASE_PATH_TEMP+"found_keys")
+        val foundKeys =jdf.sparkSession.read.parquet(BASE_PATH_TEMP+"found_keys")
+        newKeysDf.count()
+        foundKeys.count()
+
+        (newKeysDf,foundKeys)
+      }else (newKeysFrame,foundKeysFrame)
+
+      (begin, Some(nnfound), nnnew)
+    }
+
+    val newColumn = columnName + "_" + "SAM_QRE_321_455"
+    val t2 = dfZipWithIndex(newKeysDf, begin, newColumn, false)
+    val frame = t2.select(columnName, newColumn).toDF(maskKeyColumn, maskValueColumn)
+
+    frame.write.mode("append").saveAsTable(globalName)
+
+    val t3 = t2.drop(columnName).withColumnRenamed(newColumn, columnName)
+
+    val finalRes = if (toAppend.isDefined) {
+      toAppend.get.show()
+      toAppend.get.union(t3)
+    } else t3
+
+    finalRes
+  }
+
 
 }

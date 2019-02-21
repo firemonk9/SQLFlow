@@ -8,10 +8,12 @@
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
         <module name="scala-module-dependency-sample" />
+        <module name="SQLFlow1" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel target="8">
       <module name="scala-module-dependency-sample" target="1.8" />
+      <module name="SQLFlow1" target="1.8" />
     </bytecodeTargetLevel>
   </component>
 </project>
