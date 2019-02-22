@@ -140,6 +140,9 @@ object Mask {
     val needMasking = dfToCheck.filter(dfToCheck(needMaskingColumn).like("F"))
     val dfToMaskEnc = getEncryptedColumn(needMasking, columnName).drop(needMaskingColumn)
 
+
+
+
     if (!dfToMask.sparkSession.catalog.tableExists(globalName) && createIfNotExists == false) {
       throw new Exception("Check the name " + globalName + " or set createIfNotExists to true if new table should be created.")
     }
