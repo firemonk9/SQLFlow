@@ -14,7 +14,7 @@ object Mask {
   val REAL_NUMBER = "REAL_NUMBER"
   val FULL_NAMES = "FULL_NAMES"
 
-  val needMaskingColumn = "isItMasked?"
+  val needMaskingColumn = "maskColumnVal?"
   val maskKeyColumn = "mask_key_secret_sp19"
   val maskValueColumn = "mask_value_sp19"
   val BASE_PATH_TEMP = "/tmp/"
@@ -32,10 +32,10 @@ object Mask {
     df
   }
 
-  def maskColumn(df: DataFrame, columnName: String, globalName: String, maskType: String, createIfNotExists: Boolean = true, numberOfDigits: Int = -1,localTesting:Boolean=false): DataFrame = {
+  def mask(df: DataFrame, columnName: String, globalName: String, maskType: String, createIfNotExists: Boolean = true, numberOfDigits: Int = -1, localTesting:Boolean=false): DataFrame = {
     if (maskType == REAL_NUMBER)
       //maskNumber(df, columnName, globalName, createIfNotExists, numberOfDigits,localTesting)
-      isItMasked(df, columnName, globalName, createIfNotExists, numberOfDigits,localTesting)
+      maskColumnVal(df, columnName, globalName, createIfNotExists, numberOfDigits,localTesting)
     else if (maskType == FULL_NAMES)
       maskFullNames(df, columnName, globalName, createIfNotExists)
     else
@@ -113,31 +113,61 @@ object Mask {
     else
       "F"
   }
+
+  def maskedName(name1: String): String = {
+    val numbers = """[0-9]""".r
+    val tbd = "TBD"
+    val unknown = "UNKNOWN"
+    val null_strin = "NULL"
+    val na = "NA"
+    val n_a = "N/A"
+    val not_applic = "NOT APPLICABLE"
+
+    if(name1 == null || name1.trim.isEmpty() || numbers.findFirstIn(name1).toString() != "None" || name1 == name1.toUpperCase()  || name1 == tbd || name1 == unknown || name1 == null_strin || name1 == na || name1 == n_a || name1 == not_applic)
+      "T"
+    else
+      "F"
+
+  }
+
   def getColumnStatus(df: DataFrame, colName: String): DataFrame = {
     val spark = df.sparkSession
     import org.apache.spark.sql.functions._
 
+    if(colName == "ssn") {
+      val maskedStrUdf = udf[String, String](maskedString)
+      val edf = df.withColumn(needMaskingColumn, maskedStrUdf(df(colName)))
+      //edf.withColumn(colName, sha2(edf(colName), 512))
+      edf
+    }
+    else if(colName == "name"){
+      val maskedStrUdf = udf[String, String](maskedName)
+      val edf = df.withColumn(needMaskingColumn, maskedStrUdf(df(colName)))
+      //edf.withColumn(colName, sha2(edf(colName), 512))
+      edf
+    }else{
+      throw new Exception("This is not a column to mask")
+    }
 
-    val maskedStrUdf = udf[String,String](maskedString)
-    val edf = df.withColumn(needMaskingColumn, maskedStrUdf(df(colName)))
-    //edf.withColumn(colName, sha2(edf(colName), 512))
-    edf
   }
 
 
-  def isItMasked(dfToMask: DataFrame, columnName: String, tempGlobalName: String, createIfNotExists: Boolean = true, numberOfDigits: Int,localTesting:Boolean): DataFrame = {
+  def maskColumnVal(dfToMask: DataFrame, columnName: String, tempGlobalName: String, createIfNotExists: Boolean = true, numberOfDigits: Int, localTesting:Boolean): DataFrame = {
     import org.apache.spark.sql.functions.max
 
     val globalName = (tempGlobalName).toLowerCase()
-    println(" Global mask table  "+globalName)
-
-    dfToMask.sparkSession.sql("use "+maskDatabase)
-    println(" Looking for : "+globalName+"   and found status : "+dfToMask.sparkSession.catalog.tableExists(globalName))
+    println(" Global mask table  " + globalName)
+    println("colName: " + columnName)
+    println("dfToMask")
+    dfToMask.show()
+    dfToMask.sparkSession.sql("use " + maskDatabase)
+    println(" Looking for : " + globalName + "   and found status : " + dfToMask.sparkSession.catalog.tableExists(globalName))
 
     val columnType = dfToMask.select(columnName).schema.head.dataType
-    val frame123:DataFrame = dfToMask.withColumn(columnName, dfToMask(columnName).cast(StringType))
+    val frame123: DataFrame = dfToMask.withColumn(columnName, dfToMask(columnName).cast(StringType))
     val dfToCheck = getColumnStatus(frame123, columnName)
     val needMasking = dfToCheck.filter(dfToCheck(needMaskingColumn).like("F"))
+    val noMasking = dfToCheck.filter(dfToCheck(needMaskingColumn).like("T")).drop(needMaskingColumn)
     val dfToMaskEnc = getEncryptedColumn(needMasking, columnName).drop(needMaskingColumn)
 
     if (!dfToMask.sparkSession.catalog.tableExists(globalName) && createIfNotExists == false) {
@@ -148,36 +178,38 @@ object Mask {
       val begin = ("1" + "0" * numberOfDigits).toInt
       (begin, None, dfToMaskEnc)
     }
-    else  {
+    else {
 
       val cacheTableGlobal = dfToMaskEnc.sparkSession.sql("select * from " + globalName)
       var maxValue = 0.0
       var begin = 0
 
-      if(cacheTableGlobal.count() == 0){
+      if (cacheTableGlobal.count() == 0) {
         begin = ("1" + "0" * numberOfDigits).toInt
-      }else{
+      } else {
         maxValue = cacheTableGlobal.agg(max(cacheTableGlobal(maskValueColumn))).head.getLong(0)
         begin = (maxValue + 1).toInt
       }
 
-      val jdf = dfToMaskEnc.join(cacheTableGlobal, dfToMaskEnc(columnName) === cacheTableGlobal(maskKeyColumn),"left_outer")
+      val jdf = dfToMaskEnc.join(cacheTableGlobal, dfToMaskEnc(columnName) === cacheTableGlobal(maskKeyColumn), "left_outer")
 
-      val newKeysFrame = jdf.filter(jdf(maskKeyColumn).isNull).drop(maskKeyColumn, maskValueColumn)//.localCheckpoint(true)
 
-      val foundKeysFrame = jdf.filter(jdf(maskKeyColumn).isNotNull).drop(columnName, maskKeyColumn).withColumnRenamed(maskValueColumn, columnName)//.localCheckpoint(true)
+      val newKeysFrame = jdf.filter(jdf(maskKeyColumn).isNull).drop(maskKeyColumn, maskValueColumn) //.localCheckpoint(true)
+
+
+      val foundKeysFrame = jdf.filter(jdf(maskKeyColumn).isNotNull).drop(columnName, maskKeyColumn).withColumnRenamed(maskValueColumn, columnName) //.localCheckpoint(true)
 
       //TODO Temp hack to run in local.
-      val (nnnew, nnfound)=if(localTesting) {
-        newKeysFrame.write.mode(SaveMode.Overwrite).parquet(BASE_PATH_TEMP+"new_keys")
-        val newKeysDf = jdf.sparkSession.read.parquet(BASE_PATH_TEMP+"new_keys")
-        foundKeysFrame.write.mode(SaveMode.Overwrite).parquet(BASE_PATH_TEMP+"found_keys")
-        val foundKeys =jdf.sparkSession.read.parquet(BASE_PATH_TEMP+"found_keys")
+      val (nnnew, nnfound) = if (localTesting) {
+        newKeysFrame.write.mode(SaveMode.Overwrite).parquet(BASE_PATH_TEMP + "new_keys")
+        val newKeysDf = jdf.sparkSession.read.parquet(BASE_PATH_TEMP + "new_keys")
+        foundKeysFrame.write.mode(SaveMode.Overwrite).parquet(BASE_PATH_TEMP + "found_keys")
+        val foundKeys = jdf.sparkSession.read.parquet(BASE_PATH_TEMP + "found_keys")
         newKeysDf.count()
         foundKeys.count()
 
-        (newKeysDf,foundKeys)
-      }else (newKeysFrame,foundKeysFrame)
+        (newKeysDf, foundKeys)
+      } else (newKeysFrame, foundKeysFrame)
 
       (begin, Some(nnfound), nnnew)
     }
@@ -195,23 +227,23 @@ object Mask {
       toAppend.get.union(t3)
     } else t3
 
+    if (columnName == "ssn") {
+    println("This is finalRes")
     finalRes.show()
-    finalRes.withColumn(columnName, finalRes(columnName).cast(columnType))
-  }
-  def maskedName(name1: String): String = {
-    val numbers = """[0-9]""".r
-    val tbd = "TBD"
-    val unknown = "UNKNOWN"
-    val null_strin = "NULL"
-    val na = "NA"
-    val n_a = "N/A"
-    val not_applic = "NOT APPLICABLE"
+    val finalUnion = finalRes.union(noMasking)
+    finalUnion
+   //finalUnion.withColumn(columnName, finalRes(columnName).cast(columnType))
+    }else if (columnName == "name"){
+      val master_name = finalRes.sparkSession.sql("select * from name_lookup" )
+      val name_change = finalRes.join(master_name, finalRes("name") === master_name("id"), "left_outer").drop("name","id").withColumnRenamed("n_name", columnName)
+      val cols = name_change.columns
+      val finalUnion = name_change.union(noMasking.select(cols.head, cols.tail: _*))
+      finalUnion
 
-    if(name1 == null || name1.trim.isEmpty() || numbers.findFirstIn(name1).toString() == "None" || name1 == name1.toUpperCase()  || name1 == tbd || name1 == unknown || name1 == null_strin || name1 == na || name1 == n_a || name1 == not_applic)
-      "T"
-    else
-      "F"
-
+    }else{
+      throw new Exception("This is not a Masked column." + columnName)
+    }
   }
+
 
 }

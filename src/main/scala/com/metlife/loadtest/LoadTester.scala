@@ -27,7 +27,7 @@ object LoadTester {
     println(df1.count())
     df1.count().toInt
     val beginT = System.currentTimeMillis()
-    Mask.maskColumn(df1,"ssn1",globalName,Mask.REAL_NUMBER,true,numDigits)
+    Mask.mask(df1,"ssn1",globalName,Mask.REAL_NUMBER,true,numDigits)
     val endT = System.currentTimeMillis()
     println("Total time taken is "+(endT-beginT)/1000+" secs")
     10

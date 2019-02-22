@@ -144,7 +144,7 @@ class JobsExecutor(inputFlow: InputFlow, sqlContext: SQLContext, debug: Boolean 
     } else if (a.columnMask.isDefined && df.isDefined) {
       try {
         println("in column mask job ::")
-        val resultDF = Mask.maskColumn(df.get.df.get, a.columnMask.get.mask_column_name, a.columnMask.get.mask_column_global_type, a.columnMask.get.mask_column_type, true, a.columnMask.get.mask_num_digits.getOrElse(-1))
+        val resultDF = Mask.mask(df.get.df.get, a.columnMask.get.mask_column_name, a.columnMask.get.mask_column_global_type, a.columnMask.get.mask_column_type, true, a.columnMask.get.mask_num_digits.getOrElse(-1))
         df = Some(DFName(Some(resultDF), a.id))
       } catch {
         case e: Exception => exeJob(e)
