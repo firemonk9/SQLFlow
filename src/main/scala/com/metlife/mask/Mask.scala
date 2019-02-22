@@ -198,6 +198,20 @@ object Mask {
     finalRes.show()
     finalRes.withColumn(columnName, finalRes(columnName).cast(columnType))
   }
+  def maskedName(name1: String): String = {
+    val numbers = """[0-9]""".r
+    val tbd = "TBD"
+    val unknown = "UNKNOWN"
+    val null_strin = "NULL"
+    val na = "NA"
+    val n_a = "N/A"
+    val not_applic = "NOT APPLICABLE"
 
+    if(name1 == null || name1.trim.isEmpty() || numbers.findFirstIn(name1).toString() == "None" || name1 == name1.toUpperCase()  || name1 == tbd || name1 == unknown || name1 == null_strin || name1 == na || name1 == n_a || name1 == not_applic)
+      "T"
+    else
+      "F"
+
+  }
 
 }
