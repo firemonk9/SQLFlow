@@ -3,7 +3,7 @@ package com.metlife.wf
 import java.util
 import java.util.Date
 
-import com.metlife.mask.Mask
+import com.metlife.mask.{Mask, MaskType}
 import com.metlife.wf.{StatusMessage, StatusUpdate, WorkFlowUtil}
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.common.model.{SqlJobTypes, _}
@@ -144,7 +144,8 @@ class JobsExecutor(inputFlow: InputFlow, sqlContext: SQLContext, debug: Boolean 
     } else if (a.columnMask.isDefined && df.isDefined) {
       try {
         println("in column mask job ::")
-        val resultDF = Mask.mask(df.get.df.get, a.columnMask.get.mask_column_name, a.columnMask.get.mask_column_global_type, a.columnMask.get.mask_column_type, true, a.columnMask.get.mask_num_digits.getOrElse(-1))
+        val maskType = if(a.columnMask.get.mask_column_type == MaskType.FULL_NAME.toString) MaskType.FULL_NAME   else if(a.columnMask.get.mask_column_type == MaskType.SSN.toString) MaskType.SSN   else if(a.columnMask.get.mask_column_type == MaskType.REAL_NUMBER.toString) MaskType.REAL_NUMBER else throw new Exception("Not supported yet.... :)")
+        val resultDF = Mask.maskColumnVal(df.get.df.get, a.columnMask.get.mask_column_name, a.columnMask.get.mask_column_global_type, true,a.columnMask.get.mask_num_digits.getOrElse(-1),true, maskType)
         df = Some(DFName(Some(resultDF), a.id))
       } catch {
         case e: Exception => exeJob(e)

@@ -1,6 +1,7 @@
 package com.metlife.mask
 
 
+import com.metlife.mask.MaskType.MaskType
 import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
 import org.apache.commons.codec.binary.Base64
@@ -8,10 +9,16 @@ import org.apache.spark.sql.types.StringType
 import org.apache.spark.sql.{DataFrame, SaveMode}
 import org.apache.spark.sql._
 
+object MaskType extends Enumeration {
+  type MaskType = Value
+  val SSN, FULL_NAME, REAL_NUMBER = Value
+}
+
 object Mask {
 
   val maskDatabase = "mask_db"
   val REAL_NUMBER = "REAL_NUMBER"
+  val SSN = "SSN"
   val FULL_NAMES = "FULL_NAMES"
 
   val needMaskingColumn = "maskColumnVal?"
@@ -32,15 +39,15 @@ object Mask {
     df
   }
 
-  def mask(df: DataFrame, columnName: String, globalName: String, maskType: String, createIfNotExists: Boolean = true, numberOfDigits: Int = -1, localTesting:Boolean=false): DataFrame = {
-    if (maskType == REAL_NUMBER)
-      //maskNumber(df, columnName, globalName, createIfNotExists, numberOfDigits,localTesting)
-      maskColumnVal(df, columnName, globalName, createIfNotExists, numberOfDigits,localTesting)
-    else if (maskType == FULL_NAMES)
-      maskFullNames(df, columnName, globalName, createIfNotExists)
-    else
-      df
-  }
+  //  def mask(df: DataFrame, columnName: String, globalName: String, maskType: MaskType, createIfNotExists: Boolean = true, numberOfDigits: Int = -1, localTesting: Boolean = false): DataFrame = {
+  ////    if (maskType == REAL_NUMBER)
+  //    //maskNumber(df, columnName, globalName, createIfNotExists, numberOfDigits,localTesting)
+  //      maskColumnVal(df, columnName, globalName, createIfNotExists, numberOfDigits, localTesting,maskType)
+  ////    else if (maskType == FULL_NAMES)
+  ////      maskFullNames(df, columnName, globalName, createIfNotExists)
+  ////    else
+  ////      df
+  //  }
 
 
   import org.apache.spark.sql.{DataFrame, Row}
@@ -82,7 +89,7 @@ object Mask {
     import org.apache.spark.sql.functions._
 
 
-    val encryptStrUdf = udf[String,String](encryptStr)
+    val encryptStrUdf = udf[String, String](encryptStr)
     val edf = df.withColumn(colName, encryptStrUdf(df(colName)))
     edf.withColumn(colName, sha2(edf(colName), 512))
   }
@@ -90,7 +97,7 @@ object Mask {
 
   def encryptStr(col: String): String = {
 
-    if(col == null)
+    if (col == null)
       return col
     val password = ENCRYPT_PASSWD.getBytes()
     val cipher = Cipher.getInstance("AES/ECB/PKCS5Padding")
@@ -108,7 +115,7 @@ object Mask {
     val zeros = "000000000"
     val rm_dash = tin.replaceAll("-", "")
 
-    if(tin.trim.isEmpty || tin.trim.length() < 4 || tin.trim.take(1) == "-" || rm_dash.trim.matches(ones) || rm_dash.trim.matches(nines) || rm_dash.trim.matches(zeros) || tin.trim.takeRight(4) == "0000"|| special_c.findFirstIn(tin.trim).toString != "None")
+    if (tin.trim.isEmpty || tin.trim.length() < 4 || tin.trim.take(1) == "-" || rm_dash.trim.matches(ones) || rm_dash.trim.matches(nines) || rm_dash.trim.matches(zeros) || tin.trim.takeRight(4) == "0000" || special_c.findFirstIn(tin.trim).toString != "None")
       "T"
     else
       "F"
@@ -123,36 +130,26 @@ object Mask {
     val n_a = "N/A"
     val not_applic = "NOT APPLICABLE"
 
-    if(name1 == null || name1.trim.isEmpty() || numbers.findFirstIn(name1).toString() != "None" || name1 == name1.toUpperCase()  || name1 == tbd || name1 == unknown || name1 == null_strin || name1 == na || name1 == n_a || name1 == not_applic)
+    if (name1 == null || name1.trim.isEmpty() || numbers.findFirstIn(name1).toString() != "None" || name1 == name1.toUpperCase() || name1 == tbd || name1 == unknown || name1 == null_strin || name1 == na || name1 == n_a || name1 == not_applic)
       "T"
     else
       "F"
 
   }
 
+
   def getColumnStatus(df: DataFrame, colName: String): DataFrame = {
     val spark = df.sparkSession
     import org.apache.spark.sql.functions._
-
-    if(colName == "ssn") {
-      val maskedStrUdf = udf[String, String](maskedString)
-      val edf = df.withColumn(needMaskingColumn, maskedStrUdf(df(colName)))
-      //edf.withColumn(colName, sha2(edf(colName), 512))
-      edf
-    }
-    else if(colName == "name"){
-      val maskedStrUdf = udf[String, String](maskedName)
-      val edf = df.withColumn(needMaskingColumn, maskedStrUdf(df(colName)))
-      //edf.withColumn(colName, sha2(edf(colName), 512))
-      edf
-    }else{
-      throw new Exception("This is not a column to mask")
-    }
-
+    val maskedStrUdf = udf[String, String](maskedName)
+    val edf = df.withColumn(needMaskingColumn, maskedStrUdf(df(colName)))
+    //edf.withColumn(colName, sha2(edf(colName), 512))
+    edf
   }
 
 
-  def maskColumnVal(dfToMask: DataFrame, columnName: String, tempGlobalName: String, createIfNotExists: Boolean = true, numberOfDigits: Int, localTesting:Boolean): DataFrame = {
+  def maskColumnVal(dfToMask: DataFrame, columnName: String, tempGlobalName: String, createIfNotExists: Boolean = true, numberOfDigits: Int, localTesting: Boolean, maskType: MaskType
+                   ): DataFrame = {
     import org.apache.spark.sql.functions.max
 
     val globalName = (tempGlobalName).toLowerCase()
@@ -169,8 +166,6 @@ object Mask {
     val needMasking = dfToCheck.filter(dfToCheck(needMaskingColumn).like("F"))
     val noMasking = dfToCheck.filter(dfToCheck(needMaskingColumn).like("T")).drop(needMaskingColumn)
     val dfToMaskEnc = getEncryptedColumn(needMasking, columnName).drop(needMaskingColumn)
-
-
 
 
     if (!dfToMask.sparkSession.catalog.tableExists(globalName) && createIfNotExists == false) {
@@ -230,20 +225,20 @@ object Mask {
       toAppend.get.union(t3)
     } else t3
 
-    if (columnName == "ssn") {
-    println("This is finalRes")
-    finalRes.show()
-    val finalUnion = finalRes.union(noMasking)
-    finalUnion
-   //finalUnion.withColumn(columnName, finalRes(columnName).cast(columnType))
-    }else if (columnName == "name"){
-      val master_name = finalRes.sparkSession.sql("select * from name_lookup" )
-      val name_change = finalRes.join(master_name, finalRes("name") === master_name("id"), "left_outer").drop("name","id").withColumnRenamed("n_name", columnName)
+    if (maskType.id == MaskType.SSN.id || maskType.id == MaskType.REAL_NUMBER.id) {
+      println("This is finalRes")
+      finalRes.show()
+      val finalUnion = finalRes.union(noMasking)
+      finalUnion
+      //finalUnion.withColumn(columnName, finalRes(columnName).cast(columnType))
+    } else if (maskType.id == MaskType.FULL_NAME.id) {
+      val master_name = finalRes.sparkSession.sql("select * from name_lookup")
+      val name_change = finalRes.join(master_name, finalRes("name") === master_name("id"), "left_outer").drop("name", "id").withColumnRenamed("n_name", columnName)
       val cols = name_change.columns
       val finalUnion = name_change.union(noMasking.select(cols.head, cols.tail: _*))
       finalUnion
 
-    }else{
+    } else {
       throw new Exception("This is not a Masked column." + columnName)
     }
   }
